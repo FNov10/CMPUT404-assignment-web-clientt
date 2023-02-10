@@ -68,7 +68,7 @@ class HTTPClient(object):
         try:
             while not done:
                 part = sock.recv(1024)
-                sock.setblocking(0)
+                #\sock.setblocking(0)
                 
                 if (part):
                     buffer.extend(part)
@@ -77,10 +77,11 @@ class HTTPClient(object):
             return buffer.decode('utf-8')
         except BlockingIOError:
             done = True
+            buffer.extend(part)
             return buffer.decode('utf-8')
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        #code = 500
+        #body = ""
         
         if '/' not in url[7:]:
             url+='/'
@@ -95,13 +96,13 @@ class HTTPClient(object):
             port = int(conn[1])
             self.connect(host, port)
             #Creating the get request
-            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\n\r\n" % (parsed[2],host)
+            sender  = "GET %s HTTP/1.1\r\nHost:%sConnection: close\r\n\r\n" % (parsed[2],host)
     
         else:
             #seaparating the host from the path to pass in the get request
             host = parsed[1]
             path = parsed[2]
-            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\n\r\n" % (path,host)
+            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\nConnection: close\r\n\r\n" % (path,host)
             self.connect(host, 80)
         self.sendall(sender)
 
@@ -109,13 +110,14 @@ class HTTPClient(object):
 
         self.close()
         response =stringa.split('\r\n\r\n')
-        print(response)
+        #print(response)
         #extracting the headers and body from the response
         code = self.get_code(stringa)
+
         headers = self.get_headers(response)
         body = self.get_body(response)
 
-
+        print(headers+'\n')
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
@@ -124,13 +126,15 @@ class HTTPClient(object):
         body = ""
         if '/' not in url[7:]:
             url+='/'
+        length = 50
         #ensuring args is in a format readable by the post request
         if args is not None:
             args = urlencode(args)
+            length = len(args)
             
     
         parsed = urlparse(url)
-        length = 200
+        
         #if statement to differentiate bw local host and sites on the web
         if ":" in parsed[1]:
             #Separating the host and the port to connect to
@@ -154,11 +158,12 @@ class HTTPClient(object):
         self.close()
         
         response =stringa.split('\r\n\r\n')
-        print(response)
+        
         #extracting the headers and body from the response
         code = self.get_code(stringa)
         headers = self.get_headers(response)
         body = self.get_body(response)
+        print(headers+'\n')
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
