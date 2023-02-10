@@ -85,7 +85,12 @@ class HTTPClient(object):
         
         if '/' not in url[7:]:
             url+='/'
-
+        length = 50
+        #ensuring args is in a format readable by the post request
+        if args is not None:
+            args = urlencode(args)
+            length = len(args)
+            
         
         parsed = urlparse(url)
         #if statement to differentiate bw local host and sites on the web
@@ -96,13 +101,13 @@ class HTTPClient(object):
             port = int(conn[1])
             self.connect(host, port)
             #Creating the get request
-            sender  = "GET %s HTTP/1.1\r\nHost:%sConnection: close\r\n\r\n" % (parsed[2],host)
+            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\nConnection: close\r\n\r\n%s" % (parsed[2],host,args)
     
         else:
             #seaparating the host from the path to pass in the get request
             host = parsed[1]
             path = parsed[2]
-            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\nConnection: close\r\n\r\n" % (path,host)
+            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\nConnection: close\r\n\r\n%s" % (path,host,args)
             self.connect(host, 80)
         self.sendall(sender)
 
