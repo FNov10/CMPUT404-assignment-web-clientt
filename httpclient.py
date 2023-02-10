@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
+# Copyright 2023 Fahad Naveed,Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
 # 
+'''Here are the external sources that helped me during this assignment
+    https://www.internalpointers.com/post/making-http-requests-sockets-python
+    https://stackoverflow.com/questions/409783/socket-shutdown-vs-socket-close
+    https://docs.python.org/2/library/socket.html#socket.socket.setblocking
+    https://stackoverflow.com/questions/45695168/send-raw-post-request-using-socket'''
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,7 +27,7 @@ import sys
 import socket
 import re
 # you may use urllib to encode data appropriately
-import urllib.parse
+from urllib.parse import urlparse,urlencode
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -41,13 +46,14 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        
+        return int(data[9:12])
 
     def get_headers(self,data):
-        return None
+        return data[0]
 
     def get_body(self, data):
-        return None
+        return data[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -59,22 +65,100 @@ class HTTPClient(object):
     def recvall(self, sock):
         buffer = bytearray()
         done = False
-        while not done:
-            part = sock.recv(1024)
-            if (part):
-                buffer.extend(part)
-            else:
-                done = not part
-        return buffer.decode('utf-8')
-
+        try:
+            while not done:
+                part = sock.recv(1024)
+                sock.setblocking(0)
+                
+                if (part):
+                    buffer.extend(part)
+                else:
+                    done = not part
+            return buffer.decode('utf-8')
+        except BlockingIOError:
+            done = True
+            return buffer.decode('utf-8')
     def GET(self, url, args=None):
         code = 500
         body = ""
+        
+        if '/' not in url[7:]:
+            url+='/'
+
+        
+        parsed = urlparse(url)
+        #if statement to differentiate bw local host and sites on the web
+        if ":" in parsed[1]:
+            #Separating the host and the port to connect to
+            conn = parsed[1].split(":")
+            host = conn[0]
+            port = int(conn[1])
+            self.connect(host, port)
+            #Creating the get request
+            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\n\r\n" % (parsed[2],host)
+    
+        else:
+            #seaparating the host from the path to pass in the get request
+            host = parsed[1]
+            path = parsed[2]
+            sender  = "GET %s HTTP/1.1\r\nHost:%s\r\n\r\n" % (path,host)
+            self.connect(host, 80)
+        self.sendall(sender)
+
+        stringa = self.recvall(self.socket)
+
+        self.close()
+        response =stringa.split('\r\n\r\n')
+        print(response)
+        #extracting the headers and body from the response
+        code = self.get_code(stringa)
+        headers = self.get_headers(response)
+        body = self.get_body(response)
+
+
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
+        
         code = 500
         body = ""
+        if '/' not in url[7:]:
+            url+='/'
+        #ensuring args is in a format readable by the post request
+        if args is not None:
+            args = urlencode(args)
+            
+    
+        parsed = urlparse(url)
+        length = 200
+        #if statement to differentiate bw local host and sites on the web
+        if ":" in parsed[1]:
+            #Separating the host and the port to connect to
+            conn = parsed[1].split(":")
+            host = conn[0]
+            port = int(conn[1])
+            self.connect(host, port)
+            #Creating the POST request
+            sender  = "POST %s HTTP/1.1\r\nHost:%s\r\nAccept: application/json\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s" % (parsed[2],host,length,args)
+    
+        else:
+            #seaparating the host from the path to pass in the POST request
+            host = parsed[1]
+            path = parsed[2]
+            sender  = "POST %s HTTP/1.1\r\nHost:%s\r\nAccept: application/json\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s" % (path,host,length,args)
+            self.connect(host, 80)
+        self.sendall(sender)
+        self.socket.shutdown(socket.SHUT_WR)
+        stringa = self.recvall(self.socket)
+
+        self.close()
+        
+        response =stringa.split('\r\n\r\n')
+        print(response)
+        #extracting the headers and body from the response
+        code = self.get_code(stringa)
+        headers = self.get_headers(response)
+        body = self.get_body(response)
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
